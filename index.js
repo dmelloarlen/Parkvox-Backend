@@ -125,6 +125,18 @@ app.put("/update-slot", async (req, res) => {
 //   }
 // });
 
+app.get('/empty', (req, res) => {
+    res.sendStatus(200);
+});
+
+setInterval(()=>{
+    try {
+        const res=axios.get("https://parkvox-backend.onrender.com/empty")
+    } catch (error) {
+        console.log(error)
+    }
+},600000)
+
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
