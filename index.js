@@ -2,6 +2,9 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import bcrypt from "bcrypt"
+import jwt from "jsonwebtoken"
+import axios from "axios";
 
 dotenv.config();
 const app = express();
@@ -22,8 +25,8 @@ mongoose
 const slotSchema = new mongoose.Schema({
   slotId: Number,
   status: { type: String, enum: ["empty", "occupied"], default: "empty" },
-  x: Number,
-  y: Number,
+  top: String,
+  left: String,
 });
 
 // Parking Space Schema (Stores slots inside a named parking space)
@@ -31,6 +34,7 @@ const parkingSpaceSchema = new mongoose.Schema({
   name: String, // Name of the parking space
   address:String,
   location:{"lat":Number,"lon":Number},
+  layout:String,
   slots: [slotSchema], // Array of parking slots
 });
 
@@ -39,12 +43,13 @@ const ParkingSpace = mongoose.model("ParkingSpace", parkingSpaceSchema);
 // API to add a new parking space with slots
 app.post("/add-parking", async (req, res) => {
   try {
-    const { name, slots,address,location } = req.body;
+    const { name, slots,address,location,layout } = req.body;
 
     const newParkingSpace = new ParkingSpace({
       name,
       address,
       location,
+      layout,
       slots,
     });
 
@@ -64,6 +69,22 @@ app.get("/parking-spaces", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch parking spaces" });
   }
 });
+
+app.get("/parking-space/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const parkingSpace = await ParkingSpace.findById(id);
+    if (!parkingSpace) {
+      return res.status(404).json({ message: "Parking space not found" });
+    }
+
+    res.json(parkingSpace);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch parking space" });
+  }
+});
+
 
 // API to book a parking slot
 app.post("/book-slot", async (req, res) => {
@@ -87,11 +108,15 @@ app.post("/book-slot", async (req, res) => {
 });
 
 // API to update a parking slot (change status or position)
-app.put("/update-slot", async (req, res) => {
-  try {
-    const { name, slotId, status, x, y } = req.body;
+app.put("/update-slot/:id", async (req, res) => {
 
-    const parkingSpace = await ParkingSpace.findOne({ name });
+  const {id}=req.params;
+
+  try {
+    const { slotId, status, x, y } = req.body;
+    
+    const parkingSpace = await ParkingSpace.findById(id);
+    // console.log(id)
     if (!parkingSpace) return res.status(404).json({ message: "Parking space not found" });
 
     const slot = parkingSpace.slots.find((s) => s.slotId === slotId);
@@ -124,6 +149,64 @@ app.put("/update-slot", async (req, res) => {
 //     res.status(500).json({ error: "Failed to reset slots" });
 //   }
 // });
+
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  password: String,
+  phone: Number,
+  isAdmin: { type: Boolean, default: false }
+});
+
+const User = mongoose.model('User', userSchema);
+const JWT_SECRET="7fd8463fce0fc7f571dbb0677bb7daa8a4c459984326170deaf7952526a5678b"
+
+app.post('/signup', async (req, res) => {
+  try {
+      const { name, email, password, phone } = req.body;
+      
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ message: 'User already exists' });
+      }
+      console.log(name)
+      
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const newUser = new User({ name, email, password: hashedPassword, phone});
+      await newUser.save();
+
+      const token = jwt.sign({ id: newUser._id, email: newUser.email, isAdmin: newUser.isAdmin }, JWT_SECRET, { expiresIn: '1h' });
+
+      res.status(201).json({ message: 'User registered successfully', token, isAdmin: newUser.isAdmin });
+  } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+      console.log(error)
+  }
+});
+
+// Login route
+app.post('/login', async (req, res) => {
+  try {
+      const { email, password } = req.body;
+
+      const user = await User.findOne({ email });
+      if (!user) {
+          return res.status(401).json({ message: 'Invalid email or password' });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+          return res.status(401).json({ message: 'Invalid email or password' });
+      }
+
+      const token = jwt.sign({ id: user._id, name:user.name, email: user.email,phone:user.phone,isAdmin: user.isAdmin }, JWT_SECRET, { expiresIn: '1h' });
+
+      res.status(200).json({ message: 'Login successful', token, isAdmin: user.isAdmin });
+  } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 app.get('/empty', (req, res) => {
     res.sendStatus(200);
