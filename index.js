@@ -5,6 +5,8 @@ import cors from "cors";
 import bcrypt from "bcrypt"
 import jwt from "jsonwebtoken"
 import axios from "axios";
+import nodemailer from "nodemailer"
+import Fuse from "fuse.js";
 
 dotenv.config();
 const app = express();
@@ -194,6 +196,8 @@ app.post('/login', async (req, res) => {
           return res.status(401).json({ message: 'Invalid email or password' });
       }
 
+      console.log(user)
+
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
           return res.status(401).json({ message: 'Invalid email or password' });
@@ -204,6 +208,62 @@ app.post('/login', async (req, res) => {
       res.status(200).json({ message: 'Login successful', token, isAdmin: user.isAdmin });
   } catch (error) {
       res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+const transporter = nodemailer.createTransport({
+  service: "gmail", // Use Gmail, Outlook, Yahoo, etc.
+  auth: {
+    user: "arlendmello1@gmail.com",
+    pass: "treswcxenidqoydw",
+  },
+});
+
+
+// API for search
+app.post("/search", async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ message: "Query is required" });
+
+    // Fetch all parking spaces from MongoDB
+    const parkingSpaces = await ParkingSpace.find();
+
+    // Configure Fuse.js for fuzzy search
+    const fuse = new Fuse(parkingSpaces, {
+      keys: ["name"],  // Search based on parking space name
+      threshold: 0.3,  // Adjust sensitivity (lower = stricter, higher = lenient)
+    });
+
+    // Perform search
+    const results = fuse.search(query).map(result => result.item);
+
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to search parking spaces" });
+  }
+});
+
+
+
+// API route to send emails
+app.post("/send-email", async (req, res) => {
+  const { to, subject, html } = req.body;
+
+  const mailOptions = {
+    from: "arlendmello1@gmail.com",
+    to,
+    subject,
+    html,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: "Email sent successfully!" });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).json({ error: "Failed to send email" });
   }
 });
 
