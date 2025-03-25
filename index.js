@@ -40,6 +40,19 @@ const parkingSpaceSchema = new mongoose.Schema({
   slots: [slotSchema], // Array of parking slots
 });
 
+// Bookings Schema
+const bookingSchema = new mongoose.Schema({
+  parkingName: String,
+  address: String,
+  slotId: Number,
+  username: String,
+  userEmail: String,
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  bookedAt: { type: Date, default: Date.now },
+  bookingStatus: { type: String, enum: ["Booked", "Cancelled", "Completed"], default: "Booked" }, // NEW FIELD
+});
+const Booking = mongoose.model("Booking", bookingSchema);
+
 const ParkingSpace = mongoose.model("ParkingSpace", parkingSpaceSchema);
 
 // API to add a new parking space with slots
@@ -89,25 +102,25 @@ app.get("/parking-space/:id", async (req, res) => {
 
 
 // API to book a parking slot
-app.post("/book-slot", async (req, res) => {
-  try {
-    const { name, slotId } = req.body;
+// app.post("/book-slot", async (req, res) => {
+//   try {
+//     const { name, slotId } = req.body;
 
-    const parkingSpace = await ParkingSpace.findOne({ name });
-    if (!parkingSpace) return res.status(404).json({ message: "Parking space not found" });
+//     const parkingSpace = await ParkingSpace.findOne({ name });
+//     if (!parkingSpace) return res.status(404).json({ message: "Parking space not found" });
 
-    const slot = parkingSpace.slots.find((s) => s.slotId === slotId);
-    if (!slot) return res.status(404).json({ message: "Slot not found" });
-    if (slot.status === "occupied") return res.status(400).json({ message: "Slot already booked" });
+//     const slot = parkingSpace.slots.find((s) => s.slotId === slotId);
+//     if (!slot) return res.status(404).json({ message: "Slot not found" });
+//     if (slot.status === "occupied") return res.status(400).json({ message: "Slot already booked" });
 
-    slot.status = "occupied";
-    await parkingSpace.save();
+//     slot.status = "occupied";
+//     await parkingSpace.save();
 
-    res.json({ message: "Slot booked successfully" });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to book slot" });
-  }
-});
+//     res.json({ message: "Slot booked successfully" });
+//   } catch (error) {
+//     res.status(500).json({ error: "Failed to book slot" });
+//   }
+// });
 
 // API to update a parking slot (change status or position)
 app.put("/update-slot/:id", async (req, res) => {
@@ -151,6 +164,84 @@ app.put("/update-slot/:id", async (req, res) => {
 //     res.status(500).json({ error: "Failed to reset slots" });
 //   }
 // });
+
+// Book a Parking Slot
+app.post("/book-slot", async (req, res) => {
+  try {
+    const { name, address, slotId, username, userEmail, userId } = req.body;
+
+    // Save booking details in the database (Booking Status = "Booked")
+    const newBooking = new Booking({
+      parkingName: name,
+      address,
+      slotId,
+      username,
+      userEmail,
+      userId,
+      bookingStatus: "Booked",
+    });
+    await newBooking.save();
+
+    res.status(201).json({ success: true, message: "Slot booked successfully", bookedSlot: newBooking });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to book slot" });
+  }
+});
+
+// 📌 Cancel a Booking
+app.post("/cancel-slot/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Update Booking Status to "Cancelled"
+    await Booking.findByIdAndUpdate(id,{ bookingStatus: "Cancelled" });
+
+    res.json({ message: "Slot booking canceled successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to cancel slot booking" });
+  }
+});
+
+// 📌 Mark Booking as Completed (For Admin Use)
+app.post("/complete-booking", async (req, res) => {
+  try {
+    const { name, slotId, userId } = req.body;
+
+    // Find the booking and update its status to "Completed"
+    const booking = await Booking.findOneAndUpdate(
+      { parkingName: name, slotId, userId, bookingStatus: "Booked" },
+      { bookingStatus: "Completed" },
+      { new: true }
+    );
+
+    if (!booking) return res.status(404).json({ message: "Booking not found or already completed" });
+
+    res.json({ message: "Booking marked as completed", booking });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to complete booking" });
+  }
+});
+
+// 📌 Get All Bookings (Admin Panel)
+app.get("/bookings", async (req, res) => {
+  try {
+    const bookings = await Booking.find();
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch bookings" });
+  }
+});
+app.get("/bookings/:id", async (req, res) => {
+
+  const {id}=req.params
+
+  try {
+    const bookings = await Booking.findById(id);
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch bookings" });
+  }
+});
 
 const userSchema = new mongoose.Schema({
   name: String,
