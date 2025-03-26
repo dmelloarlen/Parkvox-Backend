@@ -365,7 +365,7 @@ app.get('/empty', (req, res) => {
 
 setInterval(()=>{
     try {
-        const res=axios.get("https://parkvox-backend.onrender.com/empty")
+        const res=axios.get("https://parkvox-backend-zx9e.onrender.com/empty")
     } catch (error) {
         console.log(error)
     }
