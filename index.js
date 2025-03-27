@@ -47,6 +47,7 @@ const bookingSchema = new mongoose.Schema({
   slotId: Number,
   username: String,
   userEmail: String,
+  duration:String,
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   bookedAt: { type: Date, default: Date.now },
   bookingStatus: { type: String, enum: ["Booked", "Cancelled", "Completed"], default: "Booked" }, // NEW FIELD
@@ -168,7 +169,7 @@ app.put("/update-slot/:id", async (req, res) => {
 // Book a Parking Slot
 app.post("/book-slot", async (req, res) => {
   try {
-    const { name, address, slotId, username, userEmail, userId } = req.body;
+    const { name, address, slotId, username, userEmail, duration, userId } = req.body;
 
     // Save booking details in the database (Booking Status = "Booked")
     const newBooking = new Booking({
@@ -178,6 +179,7 @@ app.post("/book-slot", async (req, res) => {
       username,
       userEmail,
       userId,
+      duration,
       bookingStatus: "Booked",
     });
     await newBooking.save();
