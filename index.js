@@ -26,7 +26,7 @@ mongoose
 // Parking Slot Schema
 const slotSchema = new mongoose.Schema({
   slotId: String,
-  status: { type: String, enum: ["empty", "occupied"], default: "empty" },
+  status: { type: String, enum: ["empty", "occupied","booked"], default: "empty" },
   top: String,
   left: String,
 });
