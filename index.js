@@ -25,7 +25,7 @@ mongoose
 
 // Parking Slot Schema
 const slotSchema = new mongoose.Schema({
-  slotId: Number,
+  slotId: String,
   status: { type: String, enum: ["empty", "occupied"], default: "empty" },
   top: String,
   left: String,
@@ -44,7 +44,7 @@ const parkingSpaceSchema = new mongoose.Schema({
 const bookingSchema = new mongoose.Schema({
   parkingName: String,
   address: String,
-  slotId: Number,
+  slotId: String,
   username: String,
   userEmail: String,
   duration:String,
@@ -94,7 +94,6 @@ app.get("/parking-space/:id", async (req, res) => {
     if (!parkingSpace) {
       return res.status(404).json({ message: "Parking space not found" });
     }
-
     res.json(parkingSpace);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch parking space" });
