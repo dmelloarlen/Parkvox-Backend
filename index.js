@@ -48,6 +48,7 @@ const bookingSchema = new mongoose.Schema({
   username: String,
   userEmail: String,
   duration:String,
+  vehicalNo:String,
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   bookedAt: { type: Date, default: Date.now },
   bookingStatus: { type: String, enum: ["Booked", "Cancelled", "Completed"], default: "Booked" }, // NEW FIELD
@@ -168,7 +169,7 @@ app.put("/update-slot/:id", async (req, res) => {
 // Book a Parking Slot
 app.post("/book-slot", async (req, res) => {
   try {
-    const { name, address, slotId, username, userEmail, duration, userId } = req.body;
+    const { name, address, slotId, username, userEmail, duration, vehicalNo, userId } = req.body;
 
     // Save booking details in the database (Booking Status = "Booked")
     const newBooking = new Booking({
@@ -179,6 +180,7 @@ app.post("/book-slot", async (req, res) => {
       userEmail,
       userId,
       duration,
+      vehicalNo:" ",
       bookingStatus: "Booked",
     });
     await newBooking.save();
@@ -188,6 +190,85 @@ app.post("/book-slot", async (req, res) => {
     res.status(500).json({ error: "Failed to book slot" });
   }
 });
+
+const getBookingDetails=async()=>{
+  
+  try {
+    const res=await axios.get("https://parkvox-backend-zx9e.onrender.com/bookings")
+    // console.log(res.data)
+    sendEmail(res.data)
+    
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const sendEmail = async (res) => {
+
+  const emailData={
+    to: res.userEmail || "arlendmello03@gmail.com",
+    subject: "Vehical Parked Sucessfully !!",
+    html:`<div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+        <h1 style="text-align: center;">PARKVOX</h1>
+        <h3 style="color: #4CAF50; text-align: center">Your Vehicle is Parked Successfully</h3>
+        <p style="font-size: 20px;">Dear <strong>${res.username}</strong>,</p>
+        <p style="font-size: 20px;">Your vehicle has been detected and successfully parked in the assigned slot.</p>
+        
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px; font-size: 18px;"><strong>Parking Space Name:</strong></td>
+            <td style="padding: 8px; font-size: 18px; color: #007BFF;">${res.parkingName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; font-size: 18px;"><strong>Slot ID:</strong></td>
+            <td style="padding: 8px; font-size: 18px; color: #FF5733;">${res.slotId}</td>
+          </tr>
+        </table>
+
+        <p style="font-size: 16px">Thank you for choosing <strong>PARKVOX</strong>!</p>
+        <hr>
+        <p style="font-size: 14px; color: #666;">This is an automated email, please do not reply.</p>
+      </div>`
+  }
+
+  try {
+    await axios.post("http://localhost:5000/send-email", emailData);
+  } catch (error) {
+    console.error("Error sending email:", error);
+  }
+};
+
+app.put("/book-slot", async (req, res) => {
+  try {
+    const { parkingName, slotId, bookingStatus, vehicalNoFromESP } = req.body;
+
+    // Find the booking document that matches the given details
+    const booking = await Booking.findOne({
+      parkingName: "Thakur Polytechnic",
+      slotId: "B10",
+      bookingStatus: "Booked",
+    });
+
+    // console.log(parkingName, slotId, bookingStatus, vehicalNoFromESP)
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Update vehicalNoFromESP in the found document
+    booking.vehicalNoFromESP = vehicalNoFromESP;
+
+    // Save the updated document
+    await booking.save();
+    sendEmail(booking);
+    res.json({ message: "Slot updated successfully", updatedBooking: booking });
+  } catch (error) {
+    console.error("Error updating booking:", error);
+    res.status(500).json({ error: "Failed to update booking" });
+  }
+});
+
+
 
 // 📌 Cancel a Booking
 app.post("/cancel-slot/:id", async (req, res) => {
